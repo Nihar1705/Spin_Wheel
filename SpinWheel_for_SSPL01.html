@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Tournament Spin Wheel</title>
+        <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a2e;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            margin: 0;
+        }
+
+        h1 {
+            margin-bottom: 10px;
+            color: #e94560;
+        }
+
+        .container {
+            display: flex;
+            gap: 40px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .wheel-box {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .wheel-container {
+            position: relative;
+            width: 350px;
+            height: 350px;
+            margin-bottom: 20px;
+        }
+
+        .pointer {
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 15px solid transparent;
+            border-right: 15px solid transparent;
+            border-top: 30px solid #e94560;
+            z-index: 10;
+        }
+
+        canvas {
+            border-radius: 50%;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.6);
+            transition: transform 4s cubic-bezier(0.1, 0.8, 0.2, 1);
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+        }
+
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        #spinBtn { background-color: #00b4d8; color: white; }
+        #spinBtn:disabled { background-color: #555; cursor: not-allowed; }
+        #resetBtn { background-color: #e94560; color: white; }
+
+        .dashboard {
+            min-width: 300px;
+        }
+
+        .status-text {
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #00b4d8;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .groups-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .group-card {
+            background-color: #16213e;
+            border: 2px solid #0f3460;
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+        }
+
+        .group-card h3 {
+            margin: 0 0 10px 0;
+            color: #e94560;
+            border-bottom: 1px solid #0f3460;
+            padding-bottom: 5px;
+        }
+
+        .slots {
+            font-size: 15px;
+            color: #cdf0ea;
+        }
+        .slots div {
+            margin: 5px 0;
+            height: 20px;
+        }
+    </style>
+    </head>
+    <body>
+
+        <h1>Tournament Group Draw</h1>
+
+        <div class="container">
+            <div class="wheel-box">
+                <div class="wheel-container">
+                    <div class="pointer"></div>
+                    <canvas id="wheel" width="350" height="350"></canvas>
+                </div>
+                <div class="controls">
+                    <button id="spinBtn">SPIN WHEEL</button>
+                    <button id="resetBtn">RESET</button>
+                </div>
+            </div>
+
+            <div class="dashboard">
+                <div class="status-text" id="status">Ready for Spin 1 (Group
+                    A)</div>
+                <div class="groups-grid">
+                    <div class="group-card" id="groupA">
+                        <h3>Group A</h3>
+                        <div class="slots"><div id="A1">-</div><div
+                                id="A2">-</div></div>
+                    </div>
+                    <div class="group-card" id="groupB">
+                        <h3>Group B</h3>
+                        <div class="slots"><div id="B1">-</div><div
+                                id="B2">-</div></div>
+                    </div>
+                    <div class="group-card" id="groupC">
+                        <h3>Group C</h3>
+                        <div class="slots"><div id="C1">-</div><div
+                                id="C2">-</div></div>
+                    </div>
+                    <div class="group-card" id="groupD">
+                        <h3>Group D</h3>
+                        <div class="slots"><div id="D1">-</div><div
+                                id="D2">-</div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+        const canvas = document.getElementById('wheel');
+        const ctx = canvas.getContext('2d');
+        const spinBtn = document.getElementById('spinBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const statusText = document.getElementById('status');
+
+        const originalTeams = ["Batch 17", "Batch 12", "Batch 15", "Batch 18", "Batch 20", "Batch 21", "Batch 23", "Batch 24"];
+        const colors = ["#f72585", "#7209b7", "#3f37c9", "#4cc9f0", "#f8961e", "#70e000", "#9b5de5", "#00f5d4"];
+        
+        let availableTeams = [...originalTeams];
+        let currentSpin = 1;
+        let isRiggedMode = true; 
+        let currentRotation = 0;
+
+        const spinConfig = {
+            1: { group: 'A', slot: 'A1', forced: "Batch 12" },
+            2: { group: 'B', slot: 'B1', forced: "Batch 15" },
+            3: { group: 'C', slot: 'C1', forced: "Batch 17" },
+            4: { group: 'D', slot: 'D1', forced: "Batch 20" },
+            5: { group: 'A', slot: 'A2', forced: "Batch 18" },
+            6: { group: 'B', slot: 'B2', forced: "Batch 24" },
+            7: { group: 'C', slot: 'C2', forced: "Batch 21" },
+            8: { group: 'D', slot: 'D2', forced: "Batch 23" }
+        };
+
+        function drawWheel() {
+            const numSegments = originalTeams.length;
+            const anglePerSegment = (2 * Math.PI) / numSegments;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            for (let i = 0; i < numSegments; i++) {
+                const startAngle = i * anglePerSegment;
+                const endAngle = startAngle + anglePerSegment;
+
+                ctx.beginPath();
+                ctx.moveTo(175, 175);
+                ctx.arc(175, 175, 175, startAngle, endAngle);
+                ctx.fillStyle = colors[i];
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.save();
+                ctx.translate(175, 175);
+                ctx.rotate(startAngle + anglePerSegment / 2);
+                ctx.textAlign = "right";
+                ctx.fillStyle = "#fff";
+                ctx.font = "bold 16px sans-serif";
+                ctx.fillText(originalTeams[i], 160, 5);
+                ctx.restore();
+            }
+        }
+
+        function spinWheel() {
+            if (currentSpin > 8) return;
+
+            spinBtn.disabled = true;
+            let targetTeam;
+            const config = spinConfig[currentSpin];
+
+            if (isRiggedMode && config.forced) {
+                targetTeam = config.forced;
+            } else {
+                // FILTER LOGIC: Find out which teams are reserved for FUTURE spins in rigged mode
+                let reservedTeams = [];
+                if (isRiggedMode) {
+                    for (let i = currentSpin + 1; i <= 8; i++) {
+                        if (spinConfig[i].forced) {
+                            reservedTeams.push(spinConfig[i].forced);
+                        }
+                    }
+                }
+
+                // Filter available teams down to options that are NOT reserved for later fixed spins
+                const trueOptions = availableTeams.filter(team => !reservedTeams.includes(team));
+                
+                // Pick randomly from the safe options list
+                const randomIndex = Math.floor(Math.random() * trueOptions.length);
+                targetTeam = trueOptions[randomIndex];
+            }
+
+            // Remove chosen team from remaining pool completely
+            availableTeams = availableTeams.filter(team => team !== targetTeam);
+
+            // Wheel Animation Mathematics
+            const teamIndex = originalTeams.indexOf(targetTeam);
+            const numSegments = originalTeams.length;
+            const anglePerSegment = 360 / numSegments;
+            const targetAngle = 270 - (teamIndex * anglePerSegment) - (anglePerSegment / 2);
+            const extraRotations = (3 + Math.floor(Math.random() * 3)) * 360;
+            
+            currentRotation = currentRotation + extraRotations + ((targetAngle - (currentRotation % 360) + 360) % 360);
+            canvas.style.transform = `rotate(${currentRotation}deg)`;
+
+            setTimeout(() => {
+                document.getElementById(config.slot).innerText = targetTeam;
+                
+                currentSpin++;
+                if (currentSpin <= 8) {
+                    const nextConfig = spinConfig[currentSpin];
+                    statusText.innerText = `Ready for Spin ${currentSpin} (Group ${nextConfig.group})`;
+                    spinBtn.disabled = false;
+                } else {
+                    statusText.innerText = "Draw Complete!";
+                    spinBtn.disabled = true;
+                }
+            }, 4000);
+        }
+
+        function resetAll() {
+            availableTeams = [...originalTeams];
+            currentSpin = 1;
+            isRiggedMode = false; // Turns off all rigging rules completely. Purely random now.
+            
+            for (let i = 1; i <= 8; i++) {
+                document.getElementById(spinConfig[i].slot).innerText = "-";
+            }
+            
+            statusText.innerText = "Rigging Removed! Ready for Spin 1 (Group A)";
+            spinBtn.disabled = false;
+            
+            currentRotation = 0;
+            canvas.style.transform = `rotate(0deg)`;
+        }
+
+        spinBtn.addEventListener('click', spinWheel);
+        resetBtn.addEventListener('click', resetAll);
+        drawWheel();
+    </script>
+    </body>
+</html>
